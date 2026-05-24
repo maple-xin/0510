@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Morph Munch 3:2</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #05070d;
+      color: white;
+      font-family: Arial, Helvetica, sans-serif;
+      touch-action: none;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #gameBox {
+      width: min(100vw, 150vh);
+      height: min(100vh, 66.6667vw);
+      aspect-ratio: 3 / 2;
+      max-width: 900px;
+      max-height: 600px;
+      position: relative;
+      overflow: hidden;
+      border-radius: 22px;
+      background: linear-gradient(180deg, #202a52 0%, #29315d 52%, #111827 100%);
+      box-shadow: 0 20px 70px rgba(0,0,0,0.55);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: transparent;
+    }
+
+    #hud {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      right: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1.25fr;
+      gap: 10px;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .pill {
+      height: 42px;
+      border-radius: 999px;
+      background: rgba(8, 12, 22, 0.45);
+      border: 1px solid rgba(255,255,255,0.18);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: clamp(11px, 2.1vw, 15px);
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      white-space: nowrap;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.24);
+    }
+
+    #title {
+      position: absolute;
+      top: 62px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: clamp(18px, 3vw, 28px);
+      font-weight: 1000;
+      letter-spacing: 3px;
+      text-shadow: 0 8px 24px rgba(0,0,0,0.42);
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    #controls {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 12px;
+      height: 72px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      z-index: 8;
+    }
+
+    .group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      width: clamp(72px, 13vw, 120px);
+      height: clamp(48px, 9vw, 68px);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(15, 23, 42, 0.72);
+      color: white;
+      font-size: clamp(11px, 2vw, 15px);
+      font-weight: 1000;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.34);
+    }
+
+    #munchBtn {
+      background: linear-gradient(135deg, #f9a8d4, #fb7185);
+      color: #111827;
+      width: clamp(88px, 15vw, 136px);
+    }
+
+    #actionBtn {
+      background: linear-gradient(135deg, #93c5fd, #38bdf8);
+      color: #111827;
+      width: clamp(88px, 15vw, 136px);
+    }
+
+    .btn:active, #startBtn:active {
+      transform: scale(0.95);
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 8, 16, 0.72);
+      backdrop-filter: blur(8px);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 28px;
+    }
+
+    #overlay.hidden {
+      display: none;
+    }
+
+    #card {
+      width: min(580px, 86%);
+      border-radius: 30px;
+      padding: 30px 26px;
+      background: rgba(15, 23, 42, 0.82);
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.45);
+    }
+
+    #overlayTitle {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 6vw, 48px);
+      line-height: 1;
+      font-weight: 1000;
+      letter-spacing: 2px;
+    }
+
+    #overlayText {
+      margin: 0 auto 22px;
+      color: rgba(255,255,255,0.82);
+      font-size: clamp(13px, 2.4vw, 18px);
+      line-height: 1.45;
+      max-width: 500px;
+    }
+
+    #startBtn {
+      width: clamp(150px, 28vw, 220px);
+      height: clamp(48px, 9vw, 60px);
+      border: 0;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #f9a8d4, #fb7185 45%, #facc15);
+      color: #111827;
+      font-size: clamp(16px, 2.5vw, 21px);
+      font-weight: 1000;
+      box-shadow: 0 12px 32px rgba(251, 113, 133, 0.36);
+    }
+
+    #toast {
+      position: absolute;
+      left: 50%;
+      top: 105px;
+      transform: translateX(-50%);
+      z-index: 10;
+      padding: 7px 14px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.58);
+      border: 1px solid rgba(255,255,255,0.16);
+      font-size: clamp(11px, 2vw, 14px);
+      font-weight: 900;
+      opacity: 0;
+      transition: opacity 0.16s ease;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    #toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameBox">
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+      <div class="pill">SCORE&nbsp;<span id="scoreText">0</span></div>
+      <div class="pill">TIME&nbsp;<span id="timeText">60</span></div>
+      <div class="pill">HP&nbsp;<span id="hpText">3</span></div>
+      <div class="pill" id="formText">NORMAL</div>
+    </div>
+
+    <div id="title">MORPH MUNCH 3:2</div>
+
+    <div id="controls">
+      <div class="group">
+        <button class="btn" id="leftBtn">◀ LEFT</button>
+        <button class="btn" id="rightBtn">RIGHT ▶</button>
+      </div>
+      <div class="group">
+        <button class="btn" id="munchBtn">MUNCH</button>
+        <button class="btn" id="actionBtn">ACTION</button>
+      </div>
+    </div>
+
+    <div id="overlay">
+      <div id="card">
+        <h1 id="overlayTitle">MORPH MUNCH</h1>
+        <p id="overlayText">3:2 landscape version. Move near a big object, tap MUNCH to transform, then use ACTION to break obstacles.</p>
+        <button id="startBtn">START</button>
+      </div>
+    </div>
+
+    <div id="toast">MUNCH!</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const scoreText = document.getElementById("scoreText");
+    const timeText = document.getElementById("timeText");
+    const hpText = document.getElementById("hpText");
+    const formText = document.getElementById("formText");
+    const overlay = document.getElementById("overlay");
+    const overlayTitle = document.getElementById("overlayTitle");
+    const overlayText = document.getElementById("overlayText");
+    const startBtn = document.getElementById("startBtn");
+    const toast = document.getElementById("toast");
+
+    const W0 = 900;
+    const H0 = 600;
+    const groundY = 430;
+
+    let scale = 1;
+    let running = false;
+    let gameOver = false;
+    let last = 0;
+    let score = 0;
+    let hp = 3;
+    let timeLeft = 60;
+    let scroll = 0;
+    let invincible = 0;
+    let spawnObstacleTimer = 0;
+    let spawnObjectTimer = 0;
+
+    let player;
+    let objects = [];
+    let obstacles = [];
+    let particles = [];
+    let clouds = [];
+    let keys = { left: false, right: false };
+
+    const forms = {
+      normal: { label: "NORMAL", color: "#f9a8d4", duration: 0 },
+      car: { label: "CAR FORM", color: "#fb923c", duration: 8 },
+      cone: { label: "CONE FORM", color: "#facc15", duration: 8 },
+      ring: { label: "RING FORM", color: "#38bdf8", duration: 8 },
+      box: { label: "BOX FORM", color: "#a78bfa", duration: 8 }
+    };
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      scale = rect.width / W0;
+      draw();
+    }
+
+    function resetGame() {
+      running = false;
+      gameOver = false;
+      score = 0;
+      hp = 3;
+      timeLeft = 60;
+      scroll = 0;
+      invincible = 0;
+      spawnObstacleTimer = 0.8;
+      spawnObjectTimer = 0.6;
+      objects = [];
+      obstacles = [];
+      particles = [];
+      clouds = [];
+      keys.left = false;
+      keys.right = false;
+
+      player = {
+        x: 170,
+        y: groundY,
+        vx: 0,
+        r: 38,
+        form: "normal",
+        formTime: 0,
+        pulse: 0,
+        cooldown: 0
+      };
+
+      for (let i = 0; i < 7; i++) {
+        clouds.push({
+          x: Math.random() * W0,
+          y: 80 + Math.random() * 145,
+          s: 24 + Math.random() * 45,
+          speed: 8 + Math.random() * 15
+        });
+      }
+
+      updateUI();
+      draw();
+    }
+
+    function startGame() {
+      resetGame();
+      running = true;
+      overlay.classList.add("hidden");
+      last = performance.now();
+      requestAnimationFrame(loop);
+    }
+
+    function updateUI() {
+      scoreText.textContent = Math.floor(score);
+      timeText.textContent = Math.ceil(Math.max(0, timeLeft));
+      hpText.textContent = Math.max(0, hp);
+      const f = forms[player.form];
+      formText.textContent = f.label + (player.formTime > 0 ? " " + Math.ceil(player.formTime) + "s" : "");
+    }
+
+    function showToast(text) {
+      toast.textContent = text;
+      toast.classList.add("show");
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove("show"), 700);
+    }
+
+    function rand(a, b) {
+      return a + Math.random() * (b - a);
+    }
+
+    function spawnObject() {
+      const list = ["car", "cone", "ring", "box"];
+      const type = list[Math.floor(Math.random() * list.length)];
+      objects.push({
+        type,
+        x: W0 + 70,
+        y: groundY,
+        wobble: Math.random() * 8
+      });
+    }
+
+    function spawnObstacle() {
+      const list = ["rock", "wall", "fly"];
+      const type = list[Math.floor(Math.random() * list.length)];
+      obstacles.push({
+        type,
+        x: W0 + 80,
+        y: type === "fly" ? groundY - 112 : groundY,
+        w: type === "wall" ? 42 : type === "fly" ? 48 : 54,
+        h: type === "wall" ? 94 : type === "fly" ? 36 : 42,
+        dead: false
+      });
+    }
+
+    function addParticles(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x, y,
+          vx: rand(-130, 130),
+          vy: rand(-165, 40),
+          r: rand(3, 7),
+          life: rand(0.35, 0.8),
+          color
+        });
+      }
+    }
+
+    function transformTo(type) {
+      player.form = type;
+      player.formTime = forms[type].duration;
+      player.pulse = 0.45;
+      score += 25;
+      addParticles(player.x, player.y - 28, forms[type].color, 24);
+      showToast(forms[type].label);
+    }
+
+    function munch() {
+      if (!running || gameOver) return;
+
+      let target = null;
+      let best = 999;
+
+      for (const obj of objects) {
+        const d = Math.hypot(obj.x - player.x, obj.y - player.y);
+        if (d < best) {
+          best = d;
+          target = obj;
+        }
+      }
+
+      if (target && best < 118) {
+        objects = objects.filter(o => o !== target);
+        transformTo(target.type);
+      } else {
+        player.pulse = 0.25;
+        showToast("MOVE CLOSER");
+      }
+    }
+
+    function action() {
+      if (!running || gameOver || player.cooldown > 0) return;
+
+      player.cooldown = 0.45;
+
+      if (player.form === "normal") {
+        player.pulse = 0.25;
+        showToast("MUNCH FIRST");
+        return;
+      }
+
+      if (player.form === "car") {
+        player.vx = 540;
+        invincible = Math.max(invincible, 0.55);
+        addParticles(player.x - 35, player.y + 10, "#fb923c", 18);
+        showToast("DASH");
+      }
+
+      if (player.form === "cone") {
+        addParticles(player.x + 42, player.y, "#facc15", 26);
+        for (const ob of obstacles) {
+          if (Math.abs(ob.x - player.x) < 170 && ob.type !== "fly") {
+            ob.dead = true;
+            score += 30;
+          }
+        }
+        showToast("SMASH");
+      }
+
+      if (player.form === "ring") {
+        addParticles(player.x + 60, player.y - 30, "#38bdf8", 30);
+        for (const ob of obstacles) {
+          if (ob.x > player.x && ob.x < player.x + 245) {
+            ob.dead = true;
+            score += 25;
+          }
+        }
+        showToast("WIND");
+      }
+
+      if (player.form === "box") {
+        invincible = Math.max(invincible, 1.8);
+        addParticles(player.x, player.y - 25, "#a78bfa", 22);
+        showToast("SHIELD");
+      }
+    }
+
+    function update(dt) {
+      scroll += 150 * dt;
+      timeLeft -= dt;
+
+      if (timeLeft <= 0) {
+        finish(true);
+        return;
+      }
+
+      if (invincible > 0) invincible -= dt;
+      if (player.cooldown > 0) player.cooldown -= dt;
+      if (player.pulse > 0) player.pulse -= dt;
+
+      let move = 0;
+      if (keys.left) move -= 1;
+      if (keys.right) move += 1;
+
+      player.vx += move * 920 * dt;
+      player.vx *= Math.pow(0.002, dt);
+      player.x += player.vx * dt;
+      player.x = Math.max(70, Math.min(820, player.x));
+
+      if (player.form !== "normal") {
+        player.formTime -= dt;
+        if (player.formTime <= 0) {
+          player.form = "normal";
+          player.formTime = 0;
+          showToast("NORMAL");
+        }
+      }
+
+      for (const c of clouds) {
+        c.x -= c.speed * dt;
+        if (c.x < -110) {
+          c.x = W0 + 110;
+          c.y = 80 + Math.random() * 145;
+        }
+      }
+
+      spawnObjectTimer -= dt;
+      spawnObstacleTimer -= dt;
+
+      if (spawnObjectTimer <= 0) {
+        spawnObject();
+        spawnObjectTimer = rand(2.6, 4.0);
+      }
+
+      if (spawnObstacleTimer <= 0) {
+        spawnObstacle();
+        spawnObstacleTimer = rand(1.25, 2.05);
+      }
+
+      for (const obj of objects) {
+        obj.x -= 170 * dt;
+        obj.wobble += dt * 5;
+      }
+
+      for (const ob of obstacles) {
+        ob.x -= 195 * dt;
+
+        const hit =
+          Math.abs(player.x - ob.x) < player.r + ob.w * 0.48 &&
+          Math.abs(player.y - ob.y) < player.r + ob.h * 0.48;
+
+        if (hit && !ob.dead) {
+          const canBreak =
+            invincible > 0 ||
+            player.form === "box" ||
+            (player.form === "car" && ob.type !== "fly") ||
+            (player.form === "cone" && ob.type !== "fly") ||
+            (player.form === "ring" && ob.type === "fly");
+
+          if (canBreak) {
+            ob.dead = true;
+            score += 18;
+            addParticles(ob.x, ob.y, "#ffffff", 16);
+          } else {
+            ob.dead = true;
+            hp -= 1;
+            invincible = 1.1;
+            addParticles(player.x, player.y - 16, "#fb7185", 24);
+            showToast("OUCH");
+            if (hp <= 0) {
+              finish(false);
+              return;
+            }
+          }
+        }
+      }
+
+      objects = objects.filter(o => o.x > -110);
+      obstacles = obstacles.filter(o => o.x > -130 && !o.dead);
+
+      for (const p of particles) {
+        p.life -= dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 290 * dt;
+      }
+
+      particles = particles.filter(p => p.life > 0);
+
+      score += dt * 4;
+      updateUI();
+    }
+
+    function finish(win) {
+      gameOver = true;
+      running = false;
+      score += win ? hp * 100 : 0;
+      overlayTitle.textContent = win ? "STAGE CLEAR" : "GAME OVER";
+      overlayText.textContent = win
+        ? "Final score: " + Math.floor(score) + ". Great morphing!"
+        : "Final score: " + Math.floor(score) + ". Swallow objects earlier and use the right form.";
+      startBtn.textContent = "PLAY AGAIN";
+      overlay.classList.remove("hidden");
+    }
+
+    function loop(now) {
+      if (!running || gameOver) return;
+      const dt = Math.min(0.033, (now - last) / 1000);
+      last = now;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    function toScreenX(x) { return x * scale; }
+    function toScreenY(y) { return y * scale; }
+
+    function rr(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.roundRect(toScreenX(x), toScreenY(y), toScreenX(w), toScreenY(h), toScreenX(r));
+      ctx.fill();
+    }
+
+    function drawSky() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      const g = ctx.createLinearGradient(0, 0, 0, rect.height);
+      g.addColorStop(0, "#24305f");
+      g.addColorStop(0.58, "#293467");
+      g.addColorStop(1, "#111827");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, rect.width, rect.height);
+
+      ctx.fillStyle = "rgba(255,255,255,0.13)";
+      for (const c of clouds) {
+        ctx.beginPath();
+        ctx.arc(toScreenX(c.x), toScreenY(c.y), toScreenX(c.s * 0.56), 0, Math.PI * 2);
+        ctx.arc(toScreenX(c.x + c.s * 0.45), toScreenY(c.y + 4), toScreenX(c.s * 0.42), 0, Math.PI * 2);
+        ctx.arc(toScreenX(c.x - c.s * 0.45), toScreenY(c.y + 7), toScreenX(c.s * 0.38), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = "#294052";
+      ctx.fillRect(0, toScreenY(groundY + 34), rect.width, rect.height - toScreenY(groundY));
+      ctx.fillStyle = "#4ade80";
+      ctx.fillRect(0, toScreenY(groundY + 10), rect.width, toScreenY(30));
+
+      ctx.strokeStyle = "rgba(255,255,255,0.1)";
+      ctx.lineWidth = Math.max(1, toScreenX(2));
+      for (let x = -((scroll * 0.75) % 64); x < W0 + 64; x += 64) {
+        ctx.beginPath();
+        ctx.moveTo(toScreenX(x), toScreenY(groundY + 54));
+        ctx.lineTo(toScreenX(x + 34), toScreenY(groundY + 54));
+        ctx.stroke();
+      }
+    }
+
+    function drawPlayer() {
+      const inv = invincible > 0 && Math.floor(invincible * 18) % 2 === 0;
+      const pulse = player.pulse > 0 ? 9 + Math.sin(player.pulse * 28) * 5 : 0;
+
+      ctx.save();
+      ctx.globalAlpha = inv ? 0.58 : 1;
+      ctx.translate(toScreenX(player.x), toScreenY(player.y));
+      ctx.scale(scale, scale);
+
+      if (player.form === "car") {
+        ctx.fillStyle = "#fb923c";
+        ctx.beginPath(); ctx.roundRect(-54, -38, 108, 58, 22); ctx.fill();
+        ctx.fillStyle = "#fed7aa";
+        ctx.beginPath(); ctx.roundRect(-20, -62, 52, 28, 14); ctx.fill();
+        ctx.fillStyle = "#111827";
+        ctx.beginPath(); ctx.arc(-34, 24, 14, 0, Math.PI * 2); ctx.arc(36, 24, 14, 0, Math.PI * 2); ctx.fill();
+      } else if (player.form === "cone") {
+        ctx.fillStyle = "#facc15";
+        ctx.beginPath(); ctx.moveTo(0, -78); ctx.lineTo(58, 26); ctx.lineTo(-58, 26); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#fb923c";
+        ctx.fillRect(-42, -10, 84, 14);
+      } else if (player.form === "ring") {
+        ctx.strokeStyle = "#38bdf8";
+        ctx.lineWidth = 23;
+        ctx.beginPath(); ctx.arc(0, -12, 50, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = "#e0f2fe";
+        ctx.beginPath(); ctx.arc(0, -12, 17, 0, Math.PI * 2); ctx.fill();
+      } else if (player.form === "box") {
+        ctx.fillStyle = "#a78bfa";
+        ctx.beginPath(); ctx.roundRect(-54, -70, 108, 92, 16); ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.42)";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(-36, -54, 72, 60);
+      } else {
+        ctx.fillStyle = "#f9a8d4";
+        ctx.beginPath(); ctx.arc(0, -18, 40 + pulse, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#111827";
+        ctx.beginPath(); ctx.arc(-14, -30, 5, 0, Math.PI * 2); ctx.arc(16, -30, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#111827";
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(2, -16, 20 + pulse * 0.45, 0.12, Math.PI - 0.12); ctx.stroke();
+        ctx.fillStyle = "#f9a8d4";
+        ctx.beginPath(); ctx.arc(-26, 16, 12, 0, Math.PI * 2); ctx.arc(28, 16, 12, 0, Math.PI * 2); ctx.fill();
+      }
+
+      ctx.restore();
+
+      ctx.fillStyle = "rgba(0,0,0,0.22)";
+      ctx.beginPath();
+      ctx.ellipse(toScreenX(player.x), toScreenY(groundY + 38), toScreenX(50), toScreenY(10), 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawObjects() {
+      for (const o of objects) {
+        const y = o.y + Math.sin(o.wobble) * 5;
+        ctx.save();
+        ctx.translate(toScreenX(o.x), toScreenY(y));
+        ctx.scale(scale, scale);
+
+        if (o.type === "car") {
+          ctx.fillStyle = "#fb923c";
+          ctx.beginPath(); ctx.roundRect(-34, -34, 68, 42, 14); ctx.fill();
+          ctx.fillStyle = "#111827";
+          ctx.beginPath(); ctx.arc(-20, 12, 9, 0, Math.PI * 2); ctx.arc(22, 12, 9, 0, Math.PI * 2); ctx.fill();
+        }
+
+        if (o.type === "cone") {
+          ctx.fillStyle = "#facc15";
+          ctx.beginPath(); ctx.moveTo(0, -48); ctx.lineTo(36, 18); ctx.lineTo(-36, 18); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = "#fb923c";
+          ctx.fillRect(-25, -5, 50, 10);
+        }
+
+        if (o.type === "ring") {
+          ctx.strokeStyle = "#38bdf8";
+          ctx.lineWidth = 12;
+          ctx.beginPath(); ctx.arc(0, -12, 34, 0, Math.PI * 2); ctx.stroke();
+        }
+
+        if (o.type === "box") {
+          ctx.fillStyle = "#a78bfa";
+          ctx.beginPath(); ctx.roundRect(-34, -48, 68, 62, 10); ctx.fill();
+          ctx.strokeStyle = "rgba(255,255,255,0.36)";
+          ctx.lineWidth = 3;
+          ctx.strokeRect(-22, -36, 44, 40);
+        }
+
+        ctx.restore();
+      }
+    }
+
+    function drawObstacles() {
+      for (const o of obstacles) {
+        ctx.save();
+        ctx.translate(toScreenX(o.x), toScreenY(o.y));
+        ctx.scale(scale, scale);
+
+        if (o.type === "rock") {
+          ctx.fillStyle = "#64748b";
+          ctx.beginPath(); ctx.arc(0, 5, 28, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "rgba(255,255,255,0.18)";
+          ctx.beginPath(); ctx.arc(-11, -8, 6, 0, Math.PI * 2); ctx.fill();
+        }
+
+        if (o.type === "wall") {
+          ctx.fillStyle = "#ef4444";
+          ctx.beginPath(); ctx.roundRect(-22, -76, 44, 96, 7); ctx.fill();
+          ctx.fillStyle = "rgba(255,255,255,0.18)";
+          ctx.fillRect(-16, -52, 32, 8);
+          ctx.fillRect(-16, -20, 32, 8);
+        }
+
+        if (o.type === "fly") {
+          ctx.fillStyle = "#22c55e";
+          ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "rgba(255,255,255,0.5)";
+          ctx.beginPath(); ctx.ellipse(-22, -12, 16, 9, -0.4, 0, Math.PI * 2); ctx.ellipse(22, -12, 16, 9, 0.4, 0, Math.PI * 2); ctx.fill();
+        }
+
+        ctx.restore();
+      }
+    }
+
+    function drawParticles() {
+      for (const p of particles) {
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(toScreenX(p.x), toScreenY(p.y), toScreenX(p.r), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function draw() {
+      if (!ctx || !player) return;
+      drawSky();
+      drawObjects();
+      drawObstacles();
+      drawPlayer();
+      drawParticles();
+    }
+
+    function holdButton(id, key) {
+      const el = document.getElementById(id);
+
+      const down = e => {
+        e.preventDefault();
+        keys[key] = true;
+      };
+
+      const up = e => {
+        e.preventDefault();
+        keys[key] = false;
+      };
+
+      el.addEventListener("touchstart", down, { passive: false });
+      el.addEventListener("touchend", up, { passive: false });
+      el.addEventListener("touchcancel", up, { passive: false });
+      el.addEventListener("mousedown", down);
+      window.addEventListener("mouseup", up);
+    }
+
+    holdButton("leftBtn", "left");
+    holdButton("rightBtn", "right");
+
+    document.getElementById("munchBtn").addEventListener("click", munch);
+    document.getElementById("actionBtn").addEventListener("click", action);
+    startBtn.addEventListener("click", startGame);
+
+    window.addEventListener("keydown", e => {
+      if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") keys.left = true;
+      if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") keys.right = true;
+      if (e.key === " " || e.key === "ArrowUp") action();
+      if (e.key === "m" || e.key === "M") munch();
+    });
+
+    window.addEventListener("keyup", e => {
+      if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") keys.left = false;
+      if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") keys.right = false;
+    });
+
+    document.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
+    window.addEventListener("resize", resize);
+
+    resetGame();
+    resize();
+  </script>
+</body>
+</html>
