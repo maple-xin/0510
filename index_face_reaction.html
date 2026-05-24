@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Face Reaction Lab</title>
+  <style>
+    *{box-sizing:border-box;user-select:none;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080912;color:#fff;font-family:Arial,Helvetica,sans-serif;touch-action:none}
+    body{display:flex;align-items:center;justify-content:center}
+    #app{
+      width:100vw;height:100vh;max-width:520px;position:relative;overflow:hidden;
+      background:radial-gradient(circle at 50% 8%,rgba(120,150,255,.18),transparent 36%),
+      linear-gradient(180deg,#11182a 0%,#1c2540 48%,#080912 100%);
+    }
+    canvas{width:100%;height:100%;display:block}
+    #top{
+      position:absolute;top:14px;left:14px;right:14px;z-index:5;display:grid;
+      grid-template-columns:1fr 1fr 1fr;gap:8px;pointer-events:none
+    }
+    .pill{
+      height:38px;border-radius:999px;background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;
+      font-weight:900;font-size:12px;letter-spacing:.8px;box-shadow:0 8px 22px rgba(0,0,0,.25)
+    }
+    #title{
+      position:absolute;top:62px;left:0;right:0;text-align:center;z-index:5;
+      font-size:22px;font-weight:1000;letter-spacing:3px;text-shadow:0 8px 22px rgba(0,0,0,.45);pointer-events:none
+    }
+    #guide{
+      position:absolute;left:16px;right:16px;bottom:18px;z-index:5;
+      background:rgba(7,10,20,.72);border:1px solid rgba(255,255,255,.14);
+      border-radius:24px;padding:14px 16px;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.34);
+      pointer-events:none
+    }
+    #guideText{font-size:15px;line-height:1.35;font-weight:900;color:rgba(255,255,255,.9);margin-bottom:10px}
+    #barWrap{height:12px;background:rgba(255,255,255,.12);border-radius:999px;overflow:hidden}
+    #bar{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#f9a8d4,#60a5fa,#facc15)}
+    #overlay{
+      position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;text-align:center;
+      padding:26px;background:rgba(4,7,14,.78);backdrop-filter:blur(10px)
+    }
+    #overlay.hidden{display:none}
+    #card{
+      width:100%;max-width:390px;border-radius:30px;padding:26px 22px;
+      background:rgba(15,23,42,.84);border:1px solid rgba(255,255,255,.16);
+      box-shadow:0 24px 80px rgba(0,0,0,.48)
+    }
+    #overlayTitle{margin:0 0 12px;font-size:34px;line-height:1;font-weight:1000;letter-spacing:1.5px}
+    #overlayText{margin:0 auto 22px;color:rgba(255,255,255,.83);font-size:15px;line-height:1.45}
+    #startBtn{
+      width:190px;height:54px;border:0;border-radius:999px;
+      background:linear-gradient(135deg,#f9a8d4,#fb7185 45%,#facc15);
+      color:#101018;font-size:18px;font-weight:1000;box-shadow:0 12px 34px rgba(251,113,133,.35)
+    }
+    #startBtn:active{transform:scale(.96)}
+    #toast{
+      position:absolute;left:50%;top:100px;transform:translateX(-50%);z-index:8;
+      padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.56);
+      border:1px solid rgba(255,255,255,.16);font-size:13px;font-weight:900;opacity:0;transition:.16s;pointer-events:none;white-space:nowrap
+    }
+    #toast.show{opacity:1}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="game"></canvas>
+
+    <div id="top">
+      <div class="pill">LEVEL <span id="levelText">1</span></div>
+      <div class="pill">SCORE <span id="scoreText">0</span></div>
+      <div class="pill">MOOD <span id="moodText">CALM</span></div>
+    </div>
+
+    <div id="title">FACE REACTION LAB</div>
+
+    <div id="guide">
+      <div id="guideText">Drag your finger on the screen. The eyes will follow your movement.</div>
+      <div id="barWrap"><div id="bar"></div></div>
+    </div>
+
+    <div id="overlay">
+      <div id="card">
+        <h1 id="overlayTitle">FACE REACTION</h1>
+        <p id="overlayText">
+          A funny interactive face game.<br>
+          Level 1: move the eyes.<br>
+          Level 2: tickle the nose with a feather.<br>
+          Level 3: clean the ear and make the eyes spin.
+        </p>
+        <button id="startBtn">START</button>
+      </div>
+    </div>
+
+    <div id="toast">Nice!</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const levelText = document.getElementById("levelText");
+    const scoreText = document.getElementById("scoreText");
+    const moodText = document.getElementById("moodText");
+    const guideText = document.getElementById("guideText");
+    const bar = document.getElementById("bar");
+    const overlay = document.getElementById("overlay");
+    const overlayTitle = document.getElementById("overlayTitle");
+    const overlayText = document.getElementById("overlayText");
+    const startBtn = document.getElementById("startBtn");
+    const toast = document.getElementById("toast");
+
+    let W = 390, H = 760, dpr = 1;
+    let running = false;
+    let level = 1;
+    let progress = 0;
+    let score = 0;
+    let last = 0;
+    let pointerDown = false;
+    let px = W / 2, py = H / 2;
+    let lastPx = px, lastPy = py;
+    let movePower = 0;
+    let noseShake = 0;
+    let earShake = 0;
+    let eyeRoll = 0;
+    let blink = 0;
+    let mood = "CALM";
+    let complete = false;
+
+    const guides = {
+      1: "LEVEL 1: Drag anywhere. Make both eyes follow your finger.",
+      2: "LEVEL 2: Drag the feather onto the nose and wiggle it.",
+      3: "LEVEL 3: Drag the ear pick around the ear. Eyes will roll with it."
+    };
+
+    function resize(){
+      dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      W = Math.floor(rect.width);
+      H = Math.floor(rect.height);
+      canvas.width = Math.floor(W * dpr);
+      canvas.height = Math.floor(H * dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      draw();
+    }
+
+    function reset(){
+      level = 1;
+      progress = 0;
+      score = 0;
+      pointerDown = false;
+      px = W / 2;
+      py = H / 2;
+      lastPx = px;
+      lastPy = py;
+      movePower = 0;
+      noseShake = 0;
+      earShake = 0;
+      eyeRoll = 0;
+      blink = 0;
+      complete = false;
+      mood = "CALM";
+      updateUI();
+      draw();
+    }
+
+    function start(){
+      reset();
+      running = true;
+      overlay.classList.add("hidden");
+      last = performance.now();
+      requestAnimationFrame(loop);
+    }
+
+    function showToast(t){
+      toast.textContent = t;
+      toast.classList.add("show");
+      clearTimeout(showToast.t);
+      showToast.t = setTimeout(()=>toast.classList.remove("show"), 850);
+    }
+
+    function updateUI(){
+      levelText.textContent = level;
+      scoreText.textContent = Math.floor(score);
+      moodText.textContent = mood;
+      guideText.textContent = guides[level] || "Complete!";
+      bar.style.width = Math.min(100, progress * 100) + "%";
+    }
+
+    function nextLevel(){
+      score += Math.floor(100 + level * 50);
+      if(level < 3){
+        level += 1;
+        progress = 0;
+        showToast("LEVEL " + level);
+      }else{
+        finish();
+      }
+      updateUI();
+    }
+
+    function finish(){
+      running = false;
+      complete = true;
+      overlayTitle.textContent = "STAGE CLEAR";
+      overlayText.innerHTML = "Final score: " + Math.floor(score + 300) + "<br>The face survived all reactions!";
+      startBtn.textContent = "PLAY AGAIN";
+      overlay.classList.remove("hidden");
+    }
+
+    function loop(now){
+      if(!running) return;
+      const dt = Math.min(0.034, (now - last) / 1000);
+      last = now;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    function dist(x1,y1,x2,y2){
+      return Math.hypot(x1-x2,y1-y2);
+    }
+
+    function update(dt){
+      const dx = px - lastPx;
+      const dy = py - lastPy;
+      movePower = Math.min(1, Math.hypot(dx,dy) / 18);
+      lastPx = px;
+      lastPy = py;
+
+      noseShake *= Math.pow(0.01, dt);
+      earShake *= Math.pow(0.01, dt);
+      eyeRoll *= Math.pow(0.03, dt);
+      blink -= dt;
+      if(blink < -2.8) blink = 0.14;
+
+      const cx = W / 2;
+      const faceY = H * 0.48;
+      const noseX = cx;
+      const noseY = faceY + 28;
+      const leftEarX = cx - 145;
+      const rightEarX = cx + 145;
+      const earY = faceY + 10;
+
+      if(level === 1){
+        mood = pointerDown ? "CURIOUS" : "CALM";
+        if(pointerDown) progress += dt * (0.18 + movePower * 0.28);
+      }
+
+      if(level === 2){
+        const nearNose = dist(px, py, noseX, noseY) < 78;
+        mood = nearNose ? "TICKLED" : "WAIT";
+        if(pointerDown && nearNose){
+          progress += dt * (0.22 + movePower * 0.55);
+          noseShake = Math.min(1, noseShake + dt * 5 + movePower * 0.4);
+          eyeRoll = Math.min(1, eyeRoll + dt * 1.2);
+        }
+      }
+
+      if(level === 3){
+        const nearLeftEar = dist(px, py, leftEarX, earY) < 85;
+        const nearRightEar = dist(px, py, rightEarX, earY) < 85;
+        const nearEar = nearLeftEar || nearRightEar;
+        mood = nearEar ? "DIZZY" : "FOCUS";
+        if(pointerDown && nearEar){
+          progress += dt * (0.25 + movePower * 0.6);
+          earShake = Math.min(1, earShake + dt * 5 + movePower * 0.5);
+          eyeRoll = Math.min(1, eyeRoll + dt * 2.8 + movePower * 0.6);
+        }
+      }
+
+      if(progress >= 1){
+        progress = 1;
+        nextLevel();
+      }
+
+      score += dt * 4;
+      updateUI();
+    }
+
+    function roundRect(x,y,w,h,r){
+      ctx.beginPath();
+      ctx.roundRect(x,y,w,h,r);
+      ctx.fill();
+    }
+
+    function drawBackground(){
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0,"#11182a");
+      g.addColorStop(.55,"#1e2a46");
+      g.addColorStop(1,"#080912");
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      ctx.fillStyle = "rgba(255,255,255,.06)";
+      for(let i=0;i<7;i++){
+        const x = (i * 91 + (performance.now()*0.012)%91) % (W+90) - 45;
+        const y = 130 + (i%3)*78;
+        ctx.beginPath();
+        ctx.arc(x,y,28,0,Math.PI*2);
+        ctx.arc(x+30,y+8,22,0,Math.PI*2);
+        ctx.arc(x-28,y+10,18,0,Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    function drawFace(){
+      const cx = W/2;
+      const cy = H*0.48;
+      const faceR = Math.min(W*0.35, H*0.20);
+      const lookX = Math.max(-1, Math.min(1, (px-cx)/(W*.32)));
+      const lookY = Math.max(-1, Math.min(1, (py-cy)/(H*.26)));
+      const roll = Math.sin(performance.now()*0.018) * eyeRoll;
+      const noseOffset = Math.sin(performance.now()*0.052) * 9 * noseShake;
+      const earOffset = Math.sin(performance.now()*0.07) * 12 * earShake;
+      const smile = level === 2 ? 16 + noseShake * 10 : level === 3 ? 8 - eyeRoll * 14 : 10;
+      const blinkScale = blink > 0 ? 0.18 : 1;
+
+      ctx.save();
+
+      ctx.fillStyle = "#4b2d22";
+      ctx.beginPath();
+      ctx.arc(cx, cy-faceR*.45, faceR*1.08, Math.PI, Math.PI*2);
+      ctx.fill();
+
+      drawEar(cx-faceR*.94, cy+earOffset*.18, -1, earOffset);
+      drawEar(cx+faceR*.94, cy-earOffset*.18, 1, -earOffset);
+
+      ctx.fillStyle = "#e5aa86";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, faceR*.92, faceR*1.14, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(255,255,255,.18)";
+      ctx.beginPath();
+      ctx.ellipse(cx-faceR*.22, cy-faceR*.42, faceR*.52, faceR*.22, -0.32, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = "#2e1e1b";
+      for(let i=-4;i<=4;i++){
+        ctx.beginPath();
+        ctx.ellipse(cx+i*faceR*.17, cy-faceR*.95+Math.abs(i)*7, faceR*.18, faceR*.45, i*.08, Math.PI, Math.PI*2);
+        ctx.fill();
+      }
+
+      drawEye(cx-faceR*.34, cy-faceR*.18, lookX + roll, lookY - roll, blinkScale);
+      drawEye(cx+faceR*.34, cy-faceR*.18, lookX - roll, lookY + roll, blinkScale);
+
+      ctx.fillStyle = "#c9755d";
+      ctx.beginPath();
+      ctx.ellipse(cx+noseOffset, cy+faceR*.18, faceR*.12+noseShake*8, faceR*.20, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = "#7a3f35";
+      ctx.beginPath();
+      ctx.arc(cx-10+noseOffset, cy+faceR*.23, 3+noseShake*2, 0, Math.PI*2);
+      ctx.arc(cx+10+noseOffset, cy+faceR*.23, 3+noseShake*2, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.strokeStyle = "#5a2d2d";
+      ctx.lineWidth = 5;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(cx, cy+faceR*.42, faceR*.22, 0.15, Math.PI-0.15);
+      if(smile < 0){
+        ctx.arc(cx, cy+faceR*.62, faceR*.22, Math.PI+0.15, Math.PI*2-0.15);
+      }
+      ctx.stroke();
+
+      if(level === 2 && noseShake > .2){
+        ctx.fillStyle = "rgba(255,255,255,.9)";
+        ctx.font = "900 22px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("hehe!", cx, cy-faceR*1.15);
+      }
+
+      if(level === 3 && earShake > .2){
+        ctx.fillStyle = "rgba(255,255,255,.9)";
+        ctx.font = "900 20px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("DIZZY!", cx, cy-faceR*1.15);
+      }
+
+      ctx.restore();
+    }
+
+    function drawEar(x,y,side,shake){
+      ctx.save();
+      ctx.translate(x,y);
+      ctx.rotate(side * 0.14 + shake * 0.018);
+      ctx.fillStyle = "#d89678";
+      ctx.beginPath();
+      ctx.ellipse(0,0,28,44,0,0,Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = "#b66f62";
+      ctx.beginPath();
+      ctx.ellipse(side*3,4,13,25,0,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawEye(x,y,lx,ly,blinkScale){
+      ctx.fillStyle = "#fff6ef";
+      ctx.beginPath();
+      ctx.ellipse(x,y,34,21*blinkScale,0,0,Math.PI*2);
+      ctx.fill();
+
+      ctx.strokeStyle = "#3b2522";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      const pxEye = x + lx * 13;
+      const pyEye = y + ly * 8;
+
+      ctx.fillStyle = "#2e4057";
+      ctx.beginPath();
+      ctx.arc(pxEye, pyEye, 10*blinkScale, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = "#101018";
+      ctx.beginPath();
+      ctx.arc(pxEye, pyEye, 5*blinkScale, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(255,255,255,.85)";
+      ctx.beginPath();
+      ctx.arc(pxEye-3, pyEye-3, 2.5*blinkScale, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    function drawTool(){
+      if(level === 2){
+        const tx = pointerDown ? px : W*0.72;
+        const ty = pointerDown ? py : H*0.72;
+        ctx.save();
+        ctx.translate(tx,ty);
+        ctx.rotate(-0.55 + Math.sin(performance.now()*0.012)*0.08);
+        ctx.strokeStyle = "#f8fafc";
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(0,0);
+        ctx.lineTo(58,-42);
+        ctx.stroke();
+        const colors = ["#f9a8d4","#facc15","#93c5fd","#fff"];
+        for(let i=0;i<9;i++){
+          ctx.fillStyle = colors[i%colors.length];
+          ctx.beginPath();
+          ctx.ellipse(58+i*2,-42-i*2,9+i*.8,22-i,0.7,0,Math.PI*2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      if(level === 3){
+        const tx = pointerDown ? px : W*0.74;
+        const ty = pointerDown ? py : H*0.70;
+        ctx.save();
+        ctx.translate(tx,ty);
+        ctx.rotate(0.8 + Math.sin(performance.now()*0.018)*0.18);
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.lineWidth = 6;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(-40,0);
+        ctx.lineTo(42,0);
+        ctx.stroke();
+        ctx.strokeStyle = "#94a3b8";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(47,0,10,-1.2,1.2);
+        ctx.stroke();
+        ctx.fillStyle = "#e2e8f0";
+        ctx.beginPath();
+        ctx.arc(-44,0,8,0,Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function draw(){
+      if(!ctx) return;
+      drawBackground();
+      drawFace();
+      drawTool();
+    }
+
+    function pointerPos(e){
+      const rect = canvas.getBoundingClientRect();
+      const p = e.touches ? e.touches[0] : e;
+      return {
+        x: p.clientX - rect.left,
+        y: p.clientY - rect.top
+      };
+    }
+
+    function pointerStart(e){
+      e.preventDefault();
+      const p = pointerPos(e);
+      pointerDown = true;
+      px = p.x;
+      py = p.y;
+      lastPx = px;
+      lastPy = py;
+    }
+
+    function pointerMove(e){
+      e.preventDefault();
+      const p = pointerPos(e);
+      px = p.x;
+      py = p.y;
+    }
+
+    function pointerEnd(e){
+      e.preventDefault();
+      pointerDown = false;
+    }
+
+    canvas.addEventListener("touchstart", pointerStart, {passive:false});
+    canvas.addEventListener("touchmove", pointerMove, {passive:false});
+    canvas.addEventListener("touchend", pointerEnd, {passive:false});
+    canvas.addEventListener("mousedown", pointerStart);
+    window.addEventListener("mousemove", e => { if(pointerDown) pointerMove(e); });
+    window.addEventListener("mouseup", pointerEnd);
+
+    startBtn.addEventListener("click", start);
+    window.addEventListener("resize", resize);
+    document.addEventListener("touchmove", e => e.preventDefault(), {passive:false});
+
+    resize();
+    reset();
+  </script>
+</body>
+</html>
