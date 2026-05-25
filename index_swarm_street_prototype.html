@@ -1,0 +1,55 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Swarm Street Prototype</title>
+<style>
+*{box-sizing:border-box;user-select:none;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05070b;color:white;font-family:Arial,Helvetica,sans-serif;touch-action:none}
+body{display:flex;align-items:center;justify-content:center}
+#app{width:100vw;height:100vh;max-width:520px;background:#79838b;position:relative;overflow:hidden}
+canvas{width:100%;height:100%;display:block}
+#hud{position:absolute;top:18px;left:18px;right:18px;z-index:5;display:flex;justify-content:space-between;pointer-events:none}
+.coinBox{height:42px;padding:0 16px;border-radius:10px;background:rgba(0,0,0,.36);display:flex;align-items:center;gap:10px;font-size:24px;font-weight:900}
+.money{width:28px;height:20px;border-radius:5px;background:#65d832;border:2px solid #fff;transform:rotate(-18deg)}
+.gear{width:42px;height:42px;border:0;border-radius:8px;background:#20a7ff;color:white;font-size:24px;font-weight:900}
+#levelText{position:absolute;top:170px;left:0;right:0;text-align:center;font-size:54px;font-weight:300;letter-spacing:4px;text-shadow:0 4px 6px rgba(0,0,0,.35);z-index:4;pointer-events:none}
+#levelText b{color:#ffe91a;-webkit-text-stroke:2px #3a2d00;font-size:74px}
+#banner{position:absolute;top:80px;left:0;right:0;text-align:center;font-size:28px;font-weight:1000;text-shadow:0 4px 8px rgba(0,0,0,.4);z-index:6;opacity:0}
+#banner.show{opacity:1}
+#cards{position:absolute;left:18px;right:18px;bottom:115px;height:188px;display:none;grid-template-columns:1fr 1fr 1fr;gap:12px;z-index:8}
+.card{border:4px solid white;border-radius:8px 8px 20px 20px;text-align:center;padding-top:14px;font-weight:1000;box-shadow:0 10px 0 rgba(0,0,0,.18)}
+.card:active{transform:scale(.96)}.card small{font-size:21px}.card div{font-size:42px;margin:20px 0 10px}.card b{font-size:27px}
+.c1{background:#0fd0a4}.c2{background:#f59a34}.c3{background:#a855f7}
+#overlay,#failed{position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;text-align:center;padding:22px}
+#failed{display:none;background:rgba(0,0,0,.18);flex-direction:column}
+.panel{width:100%;border-radius:28px;background:rgba(11,18,32,.86);border:1px solid rgba(255,255,255,.18);padding:30px 22px;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+.panel h1{font-size:54px;line-height:.95;margin:0 0 14px;font-weight:1000}
+.panel p{font-size:17px;line-height:1.38;color:rgba(255,255,255,.8);font-weight:800;margin:0 auto 22px;max-width:380px}
+#start,#retry{width:100%;height:66px;border:0;border-radius:999px;background:linear-gradient(135deg,#69f5ff,#78ff6f,#ffe45e);color:#081016;font-size:22px;font-weight:1000;letter-spacing:2px}
+#failed h1{font-size:96px;margin:0 0 36px;text-shadow:0 5px 0 rgba(0,0,0,.35)}
+#retry{width:55%;border-radius:10px;background:#0fb9c8;color:white}
+#tip{position:absolute;bottom:70px;left:0;right:0;text-align:center;font-size:14px;font-weight:900;color:rgba(255,255,255,.74);z-index:4;pointer-events:none}
+</style></head><body><div id="app"><canvas id="game"></canvas>
+<div id="hud"><div class="coinBox"><div class="money"></div><span id="cash">5</span><button class="gear">+</button></div><button class="gear">⚙</button></div>
+<div id="banner">WAVE CLEAR!</div><div id="levelText">LEVEL<br><b id="level">1</b></div><div id="tip">Drag left and right to move your squad</div>
+<div id="cards"><div class="card c1" data-up="squad"><small>LEV <span id="squadLv">1</span></small><div>👥</div><b>SQUAD</b></div><div class="card c2" data-up="speed"><small>LEV <span id="speedLv">1</span></small><div>💵</div><b>SPEED</b></div><div class="card c3" data-up="power"><small>LEV <span id="powerLv">1</span></small><div>🛡</div><b>POWER</b></div></div>
+<div id="failed"><h1>FAILED</h1><button id="retry">RETRY</button></div>
+<div id="overlay"><div class="panel"><h1>SWARM<br>STREET</h1><p>Prototype model: city road, player squad, enemy swarm, shooting combat, upgrade cards, wave clear and fail state. Later you can reskin the fighters and monsters in Loopit.</p><button id="start">START RUN</button></div></div>
+</div><script>
+const c=document.getElementById('game'),x=c.getContext('2d');
+let W=390,H=844,dpr=1,run=false,pause=true,last=0,cash=5,level=1,squadLv=1,speedLv=1,powerLv=1,playerX=200,targetX=200,units=[],enemies=[],bullets=[],coins=[],fx=[],road=0,wave=0,spawn=0,drag=false;
+const cashEl=document.getElementById('cash'),levelEl=document.getElementById('level'),cards=document.getElementById('cards'),failed=document.getElementById('failed'),overlay=document.getElementById('overlay'),banner=document.getElementById('banner');
+function R(a,b){return a+Math.random()*(b-a)}
+function resize(){let r=c.getBoundingClientRect();dpr=devicePixelRatio||1;W=r.width;H=r.height;c.width=W*dpr;c.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0);playerX=targetX=W/2;draw()}
+function reset(){run=false;pause=true;cash=5;level=1;squadLv=1;speedLv=1;powerLv=1;playerX=targetX=W/2;units=[];enemies=[];bullets=[];coins=[];fx=[];makeUnits();ui();draw()}
+function ui(){cashEl.textContent=cash;levelEl.textContent=level;document.getElementById('squadLv').textContent=squadLv;document.getElementById('speedLv').textContent=speedLv;document.getElementById('powerLv').textContent=powerLv}
+function makeUnits(){units=[];let n=4+squadLv*2;for(let i=0;i<n;i++){let row=Math.floor(i/3),col=i%3;units.push({ox:(col-1)*24+(row%2)*12,oy:row*20,hp:3+powerLv,cd:R(0,.3)})}}
+function startRun(){overlay.style.display='none';reset();run=true;pause=false;wave=24;spawn=.5;last=performance.now();requestAnimationFrame(loop)}
+function spawnEnemy(){let n=1+Math.floor(level/2);for(let i=0;i<n;i++)enemies.push({x:R(80,W-80),y:R(-90,-25),r:R(15,21),hp:20+level*8,spd:40+level*5+R(0,16),p:R(0,6)})}
+function update(dt){road=(road+150*dt)%82;playerX+=(targetX-playerX)*Math.min(1,dt*9);playerX=Math.max(86,Math.min(W-86,playerX));wave-=dt;spawn-=dt;if(spawn<=0){spawnEnemy();spawn=Math.max(.32,1.25-level*.06)}for(const e of enemies){e.y+=e.spd*dt;e.p+=dt*5;if(e.y>H-185)e.hp-=dt*18}for(const u of units){u.cd-=dt;if(u.cd>0||u.hp<=0)continue;let ux=playerX+u.ox,uy=H-145-u.oy,t=null,bd=999;for(const e of enemies){let d=Math.hypot(e.x-ux,e.y-uy);if(d<bd&&d<245){bd=d;t=e}}if(t){u.cd=Math.max(.13,.55-speedLv*.07);bullets.push({x:ux,y:uy,t,spd:540,dmg:9+powerLv*5})}}for(let i=bullets.length-1;i>=0;i--){let b=bullets[i];if(!enemies.includes(b.t)){bullets.splice(i,1);continue}let dx=b.t.x-b.x,dy=b.t.y-b.y,d=Math.hypot(dx,dy);if(d<12){b.t.hp-=b.dmg;fx.push({x:b.t.x,y:b.t.y,l:.25});bullets.splice(i,1)}else{b.x+=dx/d*b.spd*dt;b.y+=dy/d*b.spd*dt}}for(let i=enemies.length-1;i>=0;i--){let e=enemies[i];if(e.hp<=0){coins.push({x:e.x,y:e.y,vy:-80,l:.8});cash++;enemies.splice(i,1)}}for(const e of enemies){for(const u of units){let ux=playerX+u.ox,uy=H-145-u.oy;if(u.hp>0&&Math.hypot(e.x-ux,e.y-uy)<e.r+12){u.hp-=dt*3.3;e.hp-=dt*16}}}for(const co of coins){co.l-=dt;co.y+=co.vy*dt;co.vy+=220*dt}coins=coins.filter(o=>o.l>0);for(const f of fx)f.l-=dt;fx=fx.filter(f=>f.l>0);if(units.every(u=>u.hp<=0)){run=false;failed.style.display='flex'}if(wave<=0&&enemies.length===0){pause=true;cards.style.display='grid';banner.classList.add('show');setTimeout(()=>banner.classList.remove('show'),900)}ui()}
+function loop(t){if(!run)return;let dt=Math.min(.033,(t-last)/1000);last=t;if(!pause)update(dt);draw();requestAnimationFrame(loop)}
+function city(){x.fillStyle='#858e95';x.fillRect(0,0,W,H);let top=W*.45,bot=W*.74,cx=W/2;x.fillStyle='#6f7a82';x.beginPath();x.moveTo(cx-top/2,-40);x.lineTo(cx+top/2,-40);x.lineTo(cx+bot/2,H+40);x.lineTo(cx-bot/2,H+40);x.closePath();x.fill();x.strokeStyle='rgba(255,255,255,.18)';x.lineWidth=8;x.setLineDash([34,44]);x.beginPath();x.moveTo(W/2,road-100);x.lineTo(W/2,H+150);x.stroke();x.setLineDash([]);x.fillStyle='#d8d5ca';x.beginPath();x.moveTo(0,0);x.lineTo(cx-top/2-25,0);x.lineTo(cx-bot/2-38,H);x.lineTo(0,H);x.fill();x.beginPath();x.moveTo(W,0);x.lineTo(cx+top/2+25,0);x.lineTo(cx+bot/2+38,H);x.lineTo(W,H);x.fill();for(let i=0;i<12;i++){let y=(i*115+road*1.4)%H-80;x.fillStyle=i%2?'#786f5e':'#4b5962';x.fillRect(-25,y,70,90);x.fillRect(W-45,y+30,75,105);x.fillStyle='#87ad5b';x.beginPath();x.roundRect(48,y+45,24,24,6);x.roundRect(W-72,y+5,24,24,6);x.fill()}}
+function unit(px,py){x.fillStyle='#0b1d44';x.beginPath();x.arc(px,py-18,13,0,Math.PI*2);x.fill();x.fillStyle='#2563eb';x.beginPath();x.roundRect(px-9,py-12,18,26,6);x.fill();x.fillStyle='#f6b35d';x.beginPath();x.arc(px,py-22,6,0,Math.PI*2);x.fill()}
+function enemy(e){x.save();x.translate(e.x,e.y);x.fillStyle='#cf1748';x.beginPath();x.roundRect(-e.r,-e.r,e.r*2,e.r*2.2,8);x.fill();x.fillStyle='#baff23';x.beginPath();x.ellipse(-5,-3,4,7,0,0,Math.PI*2);x.ellipse(6,-3,4,7,0,0,Math.PI*2);x.fill();x.strokeStyle='#9b1233';x.lineWidth=4;x.beginPath();x.moveTo(-e.r,e.r*.7);x.lineTo(-e.r-8,e.r*1.15);x.moveTo(e.r,e.r*.7);x.lineTo(e.r+8,e.r*1.15);x.stroke();x.restore()}
+function draw(){city();x.fillStyle='rgba(0,174,255,.35)';x.fillRect(0,H-205,W,44);x.fillStyle='#fff';x.font='900 24px Arial';x.textAlign='center';x.fillText(String(units.filter(u=>u.hp>0).length),playerX,H-220);for(const e of enemies)enemy(e);for(const u of units)if(u.hp>0)unit(playerX+u.ox,H-145-u.oy);x.fillStyle='#facc15';for(const b of bullets){x.beginPath();x.arc(b.x,b.y,4,0,Math.PI*2);x.fill()}x.font='900 22px Arial';for(const co of coins){x.globalAlpha=co.l;x.fillStyle='#facc15';x.fillText('$',co.x,co.y);x.globalAlpha=1}for(const f of fx){x.globalAlpha=f.l/.25;x.fillStyle='#fff';x.beginPath();x.arc(f.x,f.y,22*(1-f.l/.25),0,Math.PI*2);x.fill();x.globalAlpha=1}}
+c.addEventListener('pointerdown',e=>{drag=true;targetX=e.offsetX});c.addEventListener('pointermove',e=>{if(drag||e.buttons)targetX=e.offsetX});window.addEventListener('pointerup',()=>drag=false);c.addEventListener('touchmove',e=>{let r=c.getBoundingClientRect();targetX=e.touches[0].clientX-r.left;e.preventDefault()},{passive:false});document.getElementById('start').onclick=startRun;document.getElementById('retry').onclick=()=>{failed.style.display='none';startRun()};cards.onclick=e=>{let card=e.target.closest('.card');if(!card)return;if(card.dataset.up==='squad')squadLv++;if(card.dataset.up==='speed')speedLv++;if(card.dataset.up==='power')powerLv++;level++;makeUnits();cards.style.display='none';pause=false;wave=24+level*2;spawn=.4;ui()};window.addEventListener('resize',resize);reset();resize();
+</script></body></html>
